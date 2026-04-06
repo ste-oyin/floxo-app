@@ -3,9 +3,13 @@ import type {
   AnalyticsResult,
   FloorPlan,
   Job,
+  Location,
+  Organization,
   Suggestion,
   Video,
 } from "@/types"
+
+const API_PREFIX = "/api/v1"
 
 function getApiBase(): string {
   const base = import.meta.env.VITE_API_URL
@@ -26,13 +30,17 @@ export async function apiFetch<T = unknown>(
   } = await supabase.auth.getSession()
   const token = session?.access_token
   const headers = new Headers(options?.headers)
-  if (!headers.has("Content-Type") && options?.body !== undefined) {
+  if (
+    !headers.has("Content-Type") &&
+    options?.body !== undefined &&
+    !(options.body instanceof FormData)
+  ) {
     headers.set("Content-Type", "application/json")
   }
   if (token) {
     headers.set("Authorization", `Bearer ${token}`)
   }
-  const res = await fetch(`${base}${normalized}`, {
+  const res = await fetch(`${base}${API_PREFIX}${normalized}`, {
     ...options,
     headers,
   })
@@ -53,6 +61,33 @@ export async function apiFetch<T = unknown>(
   }
   return undefined as T
 }
+
+// -- Onboarding --
+
+type OnboardingResult = {
+  user: { id: string; email: string; role: string }
+  organization: Organization
+  locations: Location[]
+}
+
+export function setupWorkspace() {
+  return apiFetch<OnboardingResult>("/onboarding/setup", { method: "POST" })
+}
+
+// -- Dashboard --
+
+export type DashboardStats = {
+  floor_plans: number
+  pending_jobs: number
+  completed_analyses: number
+  total_videos: number
+}
+
+export function getDashboardStats() {
+  return apiFetch<DashboardStats>("/dashboard/stats")
+}
+
+// -- Floor plans --
 
 export function getFloorPlans() {
   return apiFetch<FloorPlan[]>("/floor-plans")
@@ -80,16 +115,25 @@ export function deleteFloorPlan(id: string) {
   })
 }
 
+export function uploadFloorPlanImage(file: File) {
+  const form = new FormData()
+  form.append("file", file)
+  return apiFetch<{ image_path: string; image_url: string }>(
+    "/floor-plans/upload-image",
+    { method: "POST", body: form }
+  )
+}
+
+// -- Videos --
+
 export function getUploadUrl(body: {
+  floor_plan_id: string
   filename: string
-  content_type: string
+  content_type?: string | null
 }) {
-  return apiFetch<{ upload_url: string; storage_path: string }>(
+  return apiFetch<{ signed_url: string; path: string; token: string | null }>(
     "/videos/upload-url",
-    {
-      method: "POST",
-      body: JSON.stringify(body),
-    }
+    { method: "POST", body: JSON.stringify(body) }
   )
 }
 
@@ -104,6 +148,8 @@ export function registerVideo(body: {
   })
 }
 
+// -- Jobs --
+
 export function createJob(body: { video_id: string }) {
   return apiFetch<Job>("/jobs", {
     method: "POST",
@@ -116,14 +162,16 @@ export function getJobStatus(id: string) {
 }
 
 export function getJobResults(id: string) {
-  return apiFetch<AnalyticsResult>(
+  return apiFetch<AnalyticsResult[]>(
     `/jobs/${encodeURIComponent(id)}/results`
   )
 }
 
-export function getAnalytics(jobId: string) {
+// -- Analytics --
+
+export function getAnalytics(floorPlanId: string) {
   return apiFetch<AnalyticsResult>(
-    `/analytics/${encodeURIComponent(jobId)}`
+    `/analytics/${encodeURIComponent(floorPlanId)}`
   )
 }
 
@@ -133,15 +181,14 @@ export function getAnalyticsHistory(floorPlanId: string) {
   )
 }
 
-export function getSuggestions(jobId: string) {
+export function getSuggestions(floorPlanId: string) {
   return apiFetch<Suggestion[]>(
-    `/jobs/${encodeURIComponent(jobId)}/suggestions`
+    `/suggestions/${encodeURIComponent(floorPlanId)}`
   )
 }
 
-export function compareFloorPlans(body: { floor_plan_ids: string[] }) {
-  return apiFetch<unknown>("/floor-plans/compare", {
-    method: "POST",
-    body: JSON.stringify(body),
-  })
+export function compareFloorPlans(firstId: string, secondId: string) {
+  return apiFetch<unknown>(
+    `/floor-plans/compare?first_id=${encodeURIComponent(firstId)}&second_id=${encodeURIComponent(secondId)}`
+  )
 }

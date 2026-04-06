@@ -33,11 +33,12 @@ export function ResultsPage() {
       setLoading(true)
       setError(null)
       try {
-        const [result, sug] = await Promise.all([
+        const [results, sug] = await Promise.all([
           getJobResults(jobId),
           getSuggestions(jobId),
         ])
         if (cancelled) return
+        const result = Array.isArray(results) ? results[0] ?? null : results
         setAnalytics(result)
         setSuggestions(sug)
         if (result?.floor_plan_id) {

@@ -91,9 +91,7 @@ export function FloorPlanComparePage() {
     let cancelled = false
     void (async () => {
       try {
-        const res = (await compareFloorPlans({
-          floor_plan_ids: [leftId, rightId],
-        })) as CompareApiShape
+        const res = (await compareFloorPlans(leftId, rightId)) as CompareApiShape
         if (!cancelled) setRows(res.metrics ?? [])
       } catch {
         if (!cancelled) setRows([])

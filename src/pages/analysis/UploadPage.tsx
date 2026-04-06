@@ -21,6 +21,8 @@ import {
   getFloorPlans,
   getUploadUrl,
   registerVideo,
+  setupWorkspace,
+  uploadFloorPlanImage,
 } from "@/lib/api"
 import type { FloorPlan } from "@/types"
 
@@ -56,17 +58,25 @@ export function UploadPage() {
   const [videoFile, setVideoFile] = useState<File | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  const [locationId, setLocationId] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
     void (async () => {
       try {
+        const workspace = await setupWorkspace()
+        if (cancelled) return
+        setLocationId(workspace.locations[0]?.id ?? null)
         const data = await getFloorPlans()
         if (cancelled) return
         setItems(data)
         const fp = searchParams.get("floorPlanId")
         if (fp && data.some((x) => x.id === fp)) setSelectedId(fp)
-        else if (data[0]) setSelectedId(data[0].id)
+        else if (data.length > 0) {
+          setSelectedId(data[0].id)
+        } else {
+          setMode("create")
+        }
       } catch {
         if (!cancelled) setItems([])
       }
@@ -86,26 +96,14 @@ export function UploadPage() {
     [step]
   )
 
-  const locationIdForCreate = items[0]?.location_id
-
   async function ensureFloorPlanId(): Promise<string | null> {
     if (mode === "pick") return selectedId || null
-    if (!newName.trim() || !newImage) return null
-    if (!locationIdForCreate) {
-      throw new Error(
-        "Add at least one floor plan first so a location can be selected for new plans."
-      )
-    }
-    const up = await getUploadUrl({
-      filename: newImage.name,
-      content_type: newImage.type || "image/png",
-    })
-    await putToSignedUrl(up.upload_url, newImage)
+    if (!newName.trim() || !newImage || !locationId) return null
+    const { image_path } = await uploadFloorPlanImage(newImage)
     const created = await createFloorPlan({
-      location_id: locationIdForCreate,
+      location_id: locationId,
       name: newName.trim(),
-      image_path: up.storage_path,
-      metadata_json: {},
+      image_path,
     })
     setItems((prev) => [created, ...prev])
     setSelectedId(created.id)
@@ -115,18 +113,20 @@ export function UploadPage() {
 
   async function handleSubmit() {
     setFormError(null)
-    const fpId = activeFloorPlanId ?? (await ensureFloorPlanId())
-    if (!fpId || !videoFile) return
     setSubmitting(true)
     try {
+      const fpId = activeFloorPlanId ?? (await ensureFloorPlanId())
+      if (!fpId || !videoFile) return
+
       const videoUp = await getUploadUrl({
+        floor_plan_id: fpId,
         filename: videoFile.name,
         content_type: videoFile.type || "video/mp4",
       })
-      await putToSignedUrl(videoUp.upload_url, videoFile)
+      await putToSignedUrl(videoUp.signed_url, videoFile)
       const video = await registerVideo({
         floor_plan_id: fpId,
-        storage_path: videoUp.storage_path,
+        storage_path: videoUp.path,
         duration_seconds: null,
       })
       const job = await createJob({ video_id: video.id })
@@ -137,8 +137,6 @@ export function UploadPage() {
       setSubmitting(false)
     }
   }
-
-  const canCreateNew = Boolean(locationIdForCreate)
 
   return (
     <div className="mx-auto max-w-3xl space-y-8 px-4 py-10">
@@ -205,31 +203,26 @@ export function UploadPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant={mode === "pick" ? "default" : "secondary"}
-                onClick={() => setMode("pick")}
-              >
-                Choose existing
-              </Button>
-              <Button
-                type="button"
-                variant={mode === "create" ? "default" : "secondary"}
-                onClick={() => setMode("create")}
-                disabled={!canCreateNew}
-              >
-                Create new
-              </Button>
-            </div>
-            {mode === "create" && !canCreateNew ? (
-              <p className="text-sm text-muted-foreground">
-                Create a floor plan in an existing location first. After that,
-                you can add additional plans here.
-              </p>
-            ) : null}
+            {items.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant={mode === "pick" ? "default" : "secondary"}
+                  onClick={() => setMode("pick")}
+                >
+                  Choose existing
+                </Button>
+                <Button
+                  type="button"
+                  variant={mode === "create" ? "default" : "secondary"}
+                  onClick={() => setMode("create")}
+                >
+                  Create new
+                </Button>
+              </div>
+            )}
 
-            {mode === "pick" ? (
+            {mode === "pick" && items.length > 0 ? (
               <div className="space-y-2">
                 <p className="text-xs font-medium text-muted-foreground">
                   Floor plan
@@ -267,7 +260,7 @@ export function UploadPage() {
               disabled={
                 mode === "pick"
                   ? !selectedId
-                  : !newName.trim() || !newImage || !canCreateNew
+                  : !newName.trim() || !newImage
               }
             >
               Continue

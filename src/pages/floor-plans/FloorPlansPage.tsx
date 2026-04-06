@@ -1,62 +1,86 @@
-import { MapPinIcon, PlusIcon } from "lucide-react"
-import { useEffect, useState } from "react"
-import { Link } from "react-router-dom"
+import {
+  ImageIcon,
+  Loader2,
+  MapIcon,
+  MapPinIcon,
+  PlusIcon,
+  UploadIcon,
+  XIcon,
+} from "lucide-react"
+import { useCallback, useEffect, useRef, useState } from "react"
+import { Link, useNavigate } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { getFloorPlans } from "@/lib/api"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import {
+  createFloorPlan,
+  getFloorPlans,
+  setupWorkspace,
+  uploadFloorPlanImage,
+} from "@/lib/api"
 import type { FloorPlan } from "@/types"
 
 function formatDate(iso: string) {
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
-    timeStyle: "short",
   }).format(new Date(iso))
 }
 
 function planImageSrc(fp: FloorPlan): string | undefined {
+  if (!fp.image_path) return undefined
   if (
     fp.image_path.startsWith("http://") ||
     fp.image_path.startsWith("https://")
   ) {
     return fp.image_path
   }
-  const base = import.meta.env.VITE_API_URL?.replace(/\/$/, "")
+  const base = import.meta.env.VITE_SUPABASE_URL
   if (!base) return undefined
-  return `${base}/files/${encodeURIComponent(fp.image_path)}`
+  return `${base}/storage/v1/object/public/${fp.image_path}`
 }
 
 export function FloorPlansPage() {
+  const navigate = useNavigate()
   const [items, setItems] = useState<FloorPlan[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [dialogOpen, setDialogOpen] = useState(false)
 
-  useEffect(() => {
-    let cancelled = false
-    void (async () => {
-      setLoading(true)
-      setError(null)
-      try {
-        const data = await getFloorPlans()
-        if (!cancelled) setItems(data)
-      } catch (e) {
-        if (!cancelled) {
-          setError(e instanceof Error ? e.message : "Failed to load floor plans")
-        }
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    })()
-    return () => {
-      cancelled = true
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const data = await getFloorPlans()
+      setItems(data)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load floor plans")
+    } finally {
+      setLoading(false)
     }
   }, [])
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  function handleCreated(fp: FloorPlan) {
+    setDialogOpen(false)
+    navigate(`/floor-plans/${fp.id}`)
+  }
 
   return (
     <div className="mx-auto max-w-6xl space-y-8 px-4 py-10">
@@ -70,12 +94,13 @@ export function FloorPlansPage() {
             on each card.
           </p>
         </div>
-        <Link to="/analysis/upload">
-          <Button size="lg">
-            <PlusIcon />
-            Create new
-          </Button>
-        </Link>
+        <Button size="lg" onClick={() => setDialogOpen(true)}>
+          <PlusIcon className="size-4" />
+          New floor plan
+        </Button>
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <CreateFloorPlanDialog onCreated={handleCreated} />
+        </Dialog>
       </div>
 
       {error ? (
@@ -87,28 +112,26 @@ export function FloorPlansPage() {
       {loading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div
-              key={i}
-              className="h-56 animate-pulse rounded-xl bg-muted"
-            />
+            <div key={i} className="h-56 animate-pulse rounded-xl bg-muted" />
           ))}
         </div>
       ) : items.length === 0 ? (
-        <Card className="border-dashed shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base">No floor plans yet</CardTitle>
-            <CardDescription>
-              Upload a floor plan image and connect your first video to start
-              generating insights.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Link to="/analysis/upload">
-              <Button>
-                <PlusIcon />
-                Create a floor plan
-              </Button>
-            </Link>
+        <Card className="border-dashed shadow-none">
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="inline-flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+              <MapIcon className="size-7" />
+            </div>
+            <h2 className="mt-5 text-lg font-semibold">
+              No floor plans yet
+            </h2>
+            <p className="mt-1.5 max-w-md text-sm text-muted-foreground">
+              Upload a floor plan image of your store to start analysing foot
+              traffic patterns and get AI-powered layout suggestions.
+            </p>
+            <Button className="mt-6" onClick={() => setDialogOpen(true)}>
+              <PlusIcon className="size-4" />
+              Create your first floor plan
+            </Button>
           </CardContent>
         </Card>
       ) : (
@@ -122,27 +145,23 @@ export function FloorPlansPage() {
                     {src ? (
                       <img
                         src={src}
-                        alt=""
+                        alt={fp.name}
                         className="h-full w-full object-cover"
                       />
                     ) : (
-                      <div className="flex h-full items-center justify-center px-4 text-center text-xs text-muted-foreground">
-                        No preview
+                      <div className="flex h-full items-center justify-center text-muted-foreground">
+                        <ImageIcon className="size-10 opacity-30" />
                       </div>
                     )}
-                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-transparent" />
                   </div>
-                  <CardHeader className="space-y-2">
+                  <CardHeader className="space-y-1.5 pb-2">
                     <CardTitle className="text-base leading-snug group-hover:underline">
                       {fp.name}
                     </CardTitle>
-                    <CardDescription className="flex items-start gap-2">
-                      <MapPinIcon className="mt-0.5 size-4 shrink-0" />
-                      <span className="font-mono text-xs">{fp.location_id}</span>
-                    </CardDescription>
                   </CardHeader>
-                  <CardContent className="text-xs text-muted-foreground">
-                    Created: {formatDate(fp.created_at)}
+                  <CardContent className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <MapPinIcon className="size-3.5" />
+                    Created {formatDate(fp.created_at)}
                   </CardContent>
                 </Card>
               </Link>
@@ -151,5 +170,146 @@ export function FloorPlansPage() {
         </div>
       )}
     </div>
+  )
+}
+
+function CreateFloorPlanDialog({
+  onCreated,
+}: {
+  onCreated: (fp: FloorPlan) => void
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [name, setName] = useState("")
+  const [file, setFile] = useState<File | null>(null)
+  const [preview, setPreview] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]
+    if (!f) return
+    setFile(f)
+    const url = URL.createObjectURL(f)
+    setPreview(url)
+  }
+
+  function clearFile() {
+    setFile(null)
+    if (preview) URL.revokeObjectURL(preview)
+    setPreview(null)
+    if (fileInputRef.current) fileInputRef.current.value = ""
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!name.trim() || !file) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      const workspace = await setupWorkspace()
+      const locationId = workspace.locations[0]?.id
+      if (!locationId) throw new Error("No location available")
+
+      const { image_path } = await uploadFloorPlanImage(file)
+      const fp = await createFloorPlan({
+        location_id: locationId,
+        name: name.trim(),
+        image_path,
+      })
+      onCreated(fp)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to create floor plan")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <DialogContent className="sm:max-w-lg">
+      <form onSubmit={handleSubmit}>
+        <DialogHeader>
+          <DialogTitle>New floor plan</DialogTitle>
+          <DialogDescription>
+            Upload an image of your store layout and give it a name.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="mt-6 space-y-4">
+          <div className="space-y-2">
+            <label
+              htmlFor="fp-name"
+              className="text-sm font-medium leading-none"
+            >
+              Name
+            </label>
+            <Input
+              id="fp-name"
+              placeholder="e.g. Main showroom, Aisle A"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium leading-none">
+              Floor plan image
+            </label>
+            {preview ? (
+              <div className="relative">
+                <img
+                  src={preview}
+                  alt="Preview"
+                  className="max-h-56 w-full rounded-lg border object-contain bg-muted"
+                />
+                <button
+                  type="button"
+                  onClick={clearFile}
+                  className="absolute right-2 top-2 rounded-full bg-background/80 p-1 backdrop-blur hover:bg-background"
+                >
+                  <XIcon className="size-4" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex w-full flex-col items-center gap-2 rounded-lg border-2 border-dashed px-4 py-8 text-center transition-colors hover:border-primary/50 hover:bg-muted/30"
+              >
+                <UploadIcon className="size-6 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">
+                  Click to upload an image
+                </span>
+                <span className="text-xs text-muted-foreground/60">
+                  PNG, JPG, or SVG
+                </span>
+              </button>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleFileChange}
+              className="hidden"
+            />
+          </div>
+        </div>
+
+        {error && (
+          <p className="mt-3 text-sm text-destructive">{error}</p>
+        )}
+
+        <DialogFooter className="mt-6">
+          <Button type="submit" disabled={submitting || !name.trim() || !file}>
+            {submitting ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <PlusIcon className="size-4" />
+            )}
+            {submitting ? "Creating..." : "Create floor plan"}
+          </Button>
+        </DialogFooter>
+      </form>
+    </DialogContent>
   )
 }
