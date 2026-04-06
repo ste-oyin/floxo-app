@@ -11,7 +11,6 @@ import type {
   Wall,
   Zone,
 } from "./types"
-import { EMPTY_FLOOR_PLAN } from "./types"
 
 type Props = {
   data: FloorPlanData

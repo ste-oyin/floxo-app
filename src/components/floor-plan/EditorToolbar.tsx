@@ -39,20 +39,22 @@ export function EditorToolbar({
   onFixtureTypeChange,
 }: Props) {
   return (
-    <TooltipProvider delayDuration={200}>
+    <TooltipProvider delay={200}>
       <div className="flex w-14 flex-col items-center gap-1 border-r bg-background px-2 py-3">
         {TOOLS.map(({ tool, label, icon, shortcut }) => (
           <Tooltip key={tool}>
-            <TooltipTrigger asChild>
-              <Button
-                variant={activeTool === tool ? "default" : "ghost"}
-                size="icon"
-                className="size-10"
-                onClick={() => onToolChange(tool)}
-              >
-                {icon}
-              </Button>
-            </TooltipTrigger>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant={activeTool === tool ? "default" : "ghost"}
+                  size="icon"
+                  className="size-10"
+                  onClick={() => onToolChange(tool)}
+                >
+                  {icon}
+                </Button>
+              }
+            />
             <TooltipContent side="right">
               {label} ({shortcut})
             </TooltipContent>
@@ -64,28 +66,30 @@ export function EditorToolbar({
             <div className="my-2 h-px w-full bg-border" />
             {FIXTURE_PRESETS.map((preset) => (
               <Tooltip key={preset.type}>
-                <TooltipTrigger asChild>
-                  <button
-                    className="flex size-10 items-center justify-center rounded-md border text-xs font-medium transition-colors"
-                    style={{
-                      backgroundColor:
-                        activeFixtureType === preset.type
-                          ? preset.color + "20"
-                          : undefined,
-                      borderColor:
-                        activeFixtureType === preset.type
-                          ? preset.color
-                          : "transparent",
-                      color: preset.color,
-                    }}
-                    onClick={() => onFixtureTypeChange(preset.type)}
-                  >
-                    <div
-                      className="size-5 rounded-sm"
-                      style={{ backgroundColor: preset.color + "CC" }}
-                    />
-                  </button>
-                </TooltipTrigger>
+                <TooltipTrigger
+                  render={
+                    <button
+                      className="flex size-10 items-center justify-center rounded-md border text-xs font-medium transition-colors"
+                      style={{
+                        backgroundColor:
+                          activeFixtureType === preset.type
+                            ? preset.color + "20"
+                            : undefined,
+                        borderColor:
+                          activeFixtureType === preset.type
+                            ? preset.color
+                            : "transparent",
+                        color: preset.color,
+                      }}
+                      onClick={() => onFixtureTypeChange(preset.type)}
+                    >
+                      <div
+                        className="size-5 rounded-sm"
+                        style={{ backgroundColor: preset.color + "CC" }}
+                      />
+                    </button>
+                  }
+                />
                 <TooltipContent side="right">{preset.label}</TooltipContent>
               </Tooltip>
             ))}

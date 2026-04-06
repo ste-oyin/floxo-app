@@ -1,6 +1,5 @@
-import Konva from "konva"
 import { FlameIcon, ImageIcon } from "lucide-react"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Layer, Line, Rect, Stage } from "react-konva"
 
 import { FIXTURE_PRESETS } from "@/components/floor-plan/fixtures"
@@ -128,7 +127,7 @@ export function HeatmapViewerPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
         <div className="w-full max-w-xs space-y-1.5">
           <Label>Floor plan</Label>
-          <Select value={selectedFpId} onValueChange={setSelectedFpId}>
+          <Select value={selectedFpId} onValueChange={(v) => { if (v) setSelectedFpId(v) }}>
             <SelectTrigger>
               <SelectValue placeholder="Select a floor plan" />
             </SelectTrigger>
@@ -148,7 +147,7 @@ export function HeatmapViewerPage() {
             max={100}
             step={5}
             value={[opacity]}
-            onValueChange={([v]) => setOpacity(v)}
+            onValueChange={(v) => setOpacity(Array.isArray(v) ? v[0] : v)}
           />
         </div>
       </div>
@@ -241,21 +240,6 @@ function EditorHeatmapOverlay({
   containerRef: React.RefObject<HTMLDivElement | null>
   containerSize: { width: number; height: number }
 }) {
-  const [heatmapImage, setHeatmapImage] = useState<HTMLImageElement | null>(
-    null
-  )
-
-  useEffect(() => {
-    if (!heatmapUrl) {
-      setHeatmapImage(null)
-      return
-    }
-    const img = new window.Image()
-    img.crossOrigin = "anonymous"
-    img.src = heatmapUrl
-    img.onload = () => setHeatmapImage(img)
-  }, [heatmapUrl])
-
   const scale = useMemo(() => {
     const sx = containerSize.width / data.canvas.width
     const sy = (containerSize.height || 600) / data.canvas.height
