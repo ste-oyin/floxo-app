@@ -64,6 +64,7 @@ export function FloorPlansPage() {
     setLoading(true)
     setError(null)
     try {
+      await setupWorkspace()
       const data = await getFloorPlans()
       setItems(data)
     } catch (e) {
@@ -80,6 +81,11 @@ export function FloorPlansPage() {
   function handleCreated(fp: FloorPlan) {
     setDialogOpen(false)
     navigate(`/floor-plans/${fp.id}`)
+  }
+
+  function handleBuildFromScratch() {
+    setDialogOpen(false)
+    navigate("/floor-plans/new")
   }
 
   return (
@@ -99,14 +105,17 @@ export function FloorPlansPage() {
           New floor plan
         </Button>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <CreateFloorPlanDialog onCreated={handleCreated} />
+          <CreateFloorPlanDialog onCreated={handleCreated} onBuildFromScratch={handleBuildFromScratch} />
         </Dialog>
       </div>
 
       {error ? (
-        <p className="text-sm text-destructive" role="alert">
-          {error}
-        </p>
+        <div className="flex flex-col items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-6 text-center" role="alert">
+          <p className="text-sm text-destructive">Something went wrong loading your floor plans.</p>
+          <Button variant="outline" size="sm" onClick={load}>
+            Retry
+          </Button>
+        </div>
       ) : null}
 
       {loading ? (
@@ -173,12 +182,17 @@ export function FloorPlansPage() {
   )
 }
 
+type DialogMode = "choose" | "upload"
+
 function CreateFloorPlanDialog({
   onCreated,
+  onBuildFromScratch,
 }: {
   onCreated: (fp: FloorPlan) => void
+  onBuildFromScratch: () => void
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [mode, setMode] = useState<DialogMode>("choose")
   const [name, setName] = useState("")
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
@@ -224,11 +238,57 @@ function CreateFloorPlanDialog({
     }
   }
 
+  if (mode === "choose") {
+    return (
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>New floor plan</DialogTitle>
+          <DialogDescription>
+            Choose how you'd like to create your floor plan.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <button
+            type="button"
+            className="flex flex-col items-center gap-3 rounded-xl border-2 border-dashed p-6 text-center transition-colors hover:border-primary/50 hover:bg-muted/30"
+            onClick={onBuildFromScratch}
+          >
+            <div className="flex size-12 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <MapIcon className="size-6" />
+            </div>
+            <div>
+              <p className="text-sm font-medium">Build from scratch</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Draw walls, zones and place fixtures using our editor
+              </p>
+            </div>
+          </button>
+          <button
+            type="button"
+            className="flex flex-col items-center gap-3 rounded-xl border-2 border-dashed p-6 text-center transition-colors hover:border-primary/50 hover:bg-muted/30"
+            onClick={() => setMode("upload")}
+          >
+            <div className="flex size-12 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <UploadIcon className="size-6" />
+            </div>
+            <div>
+              <p className="text-sm font-medium">Upload image</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Upload an existing floor plan image of your store
+              </p>
+            </div>
+          </button>
+        </div>
+      </DialogContent>
+    )
+  }
+
   return (
     <DialogContent className="sm:max-w-lg">
       <form onSubmit={handleSubmit}>
         <DialogHeader>
-          <DialogTitle>New floor plan</DialogTitle>
+          <DialogTitle>Upload floor plan image</DialogTitle>
           <DialogDescription>
             Upload an image of your store layout and give it a name.
           </DialogDescription>
@@ -300,6 +360,9 @@ function CreateFloorPlanDialog({
         )}
 
         <DialogFooter className="mt-6">
+          <Button variant="ghost" type="button" onClick={() => setMode("choose")}>
+            Back
+          </Button>
           <Button type="submit" disabled={submitting || !name.trim() || !file}>
             {submitting ? (
               <Loader2 className="size-4 animate-spin" />

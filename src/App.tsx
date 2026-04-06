@@ -12,7 +12,9 @@ import { SignupPage } from "@/pages/auth/SignupPage"
 import { DashboardPage } from "@/pages/dashboard/DashboardPage"
 import { FloorPlanComparePage } from "@/pages/floor-plans/FloorPlanComparePage"
 import { FloorPlanDetailPage } from "@/pages/floor-plans/FloorPlanDetailPage"
+import { FloorPlanEditorPage } from "@/pages/floor-plans/FloorPlanEditorPage"
 import { FloorPlansPage } from "@/pages/floor-plans/FloorPlansPage"
+import { HeatmapViewerPage } from "@/pages/heatmap/HeatmapViewerPage"
 import { SettingsPage } from "@/pages/settings/SettingsPage"
 
 export default function App() {
@@ -27,13 +29,22 @@ export default function App() {
               <Route index element={<DashboardPage />} />
               <Route path="floor-plans" element={<FloorPlansPage />} />
               <Route
+                path="floor-plans/new"
+                element={<FloorPlanEditorPage />}
+              />
+              <Route
                 path="floor-plans/compare"
                 element={<FloorPlanComparePage />}
+              />
+              <Route
+                path="floor-plans/:id/edit"
+                element={<FloorPlanEditorPage />}
               />
               <Route
                 path="floor-plans/:id"
                 element={<FloorPlanDetailPage />}
               />
+              <Route path="heatmap" element={<HeatmapViewerPage />} />
               <Route path="analysis/upload" element={<UploadPage />} />
               <Route path="analysis/jobs/:id" element={<JobStatusPage />} />
               <Route path="analysis/results/:id" element={<ResultsPage />} />

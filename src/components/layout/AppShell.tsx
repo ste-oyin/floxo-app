@@ -1,4 +1,5 @@
 import {
+  FlameIcon,
   LayoutDashboard,
   LogOut,
   Map,
@@ -83,6 +84,10 @@ export function AppShell() {
         >
           <Upload className="size-4 shrink-0" />
           Upload Analysis
+        </NavLink>
+        <NavLink to="/heatmap" className={navLinkClass} onClick={closeMobile}>
+          <FlameIcon className="size-4 shrink-0" />
+          Heatmap
         </NavLink>
         <NavLink to="/settings" className={navLinkClass} onClick={closeMobile}>
           <Settings className="size-4 shrink-0" />

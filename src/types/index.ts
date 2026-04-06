@@ -22,6 +22,8 @@ export type FloorPlan = {
   created_at: string
 }
 
+export type { FloorPlanData, Wall, Zone, Fixture, CanvasConfig } from "@/components/floor-plan/types"
+
 export type Video = {
   id: string
   floor_plan_id: string

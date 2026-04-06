@@ -115,6 +115,21 @@ export function deleteFloorPlan(id: string) {
   })
 }
 
+export function updateFloorPlan(
+  id: string,
+  body: {
+    location_id: string
+    name: string
+    image_path?: string
+    metadata_json?: Record<string, unknown>
+  }
+) {
+  return apiFetch<FloorPlan>(`/floor-plans/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  })
+}
+
 export function uploadFloorPlanImage(file: File) {
   const form = new FormData()
   form.append("file", file)
