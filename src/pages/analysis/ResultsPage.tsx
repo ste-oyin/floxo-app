@@ -33,19 +33,23 @@ export function ResultsPage() {
       setLoading(true)
       setError(null)
       try {
-        const [results, sug] = await Promise.all([
-          getJobResults(jobId),
-          getSuggestions(jobId),
-        ])
+        const results = await getJobResults(jobId)
         if (cancelled) return
         const result = Array.isArray(results) ? results[0] ?? null : results
         setAnalytics(result)
-        setSuggestions(sug)
+
         if (result?.floor_plan_id) {
-          const fp = await getFloorPlan(result.floor_plan_id)
-          if (!cancelled) setFloorPlan(fp)
+          const [fp, sug] = await Promise.all([
+            getFloorPlan(result.floor_plan_id),
+            getSuggestions(result.floor_plan_id).catch(() => [] as Suggestion[]),
+          ])
+          if (!cancelled) {
+            setFloorPlan(fp)
+            setSuggestions(sug)
+          }
         } else {
           setFloorPlan(null)
+          setSuggestions([])
         }
       } catch (e) {
         if (!cancelled) {

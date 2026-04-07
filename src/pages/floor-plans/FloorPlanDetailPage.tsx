@@ -63,8 +63,12 @@ export function FloorPlanDetailPage() {
         setLatest(newest)
         setOthers(all.filter((x) => x.id !== id))
         if (newest) {
-          const sug = await getSuggestions(newest.job_id)
-          if (!cancelled) setSuggestions(sug)
+          try {
+            const sug = await getSuggestions(id)
+            if (!cancelled) setSuggestions(sug)
+          } catch {
+            if (!cancelled) setSuggestions([])
+          }
         } else {
           setSuggestions([])
         }
