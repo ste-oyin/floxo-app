@@ -10,22 +10,44 @@ export type Wall = {
   thickness: number
 }
 
+export type ZoneType =
+  | "high-value"
+  | "low-value"
+  | "checkout"
+  | "walkway"
+  | "custom"
+
 export type Zone = {
   id: string
   name: string
   color: string
   points: number[]
+  zoneType: ZoneType
 }
+
+export type FixtureType =
+  | "shelf"
+  | "counter"
+  | "display"
+  | "island"
+  | "door"
+  | "checkout-lane"
+  | "entrance"
+  | "pillar"
+  | "table"
+  | "window"
+  | "gondola"
 
 export type Fixture = {
   id: string
-  type: string
+  type: FixtureType | string
   x: number
   y: number
   width: number
   height: number
   rotation: number
   label?: string
+  color?: string
 }
 
 export type FloorPlanData = {
@@ -38,8 +60,10 @@ export type FloorPlanData = {
 export type EditorTool = "select" | "pan" | "wall" | "zone" | "fixture"
 
 export type FixturePreset = {
-  type: string
+  type: FixtureType | string
   label: string
+  icon: string
+  category: "fixture" | "structure" | "zone-marker"
   width: number
   height: number
   color: string

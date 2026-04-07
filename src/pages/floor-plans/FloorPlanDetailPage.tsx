@@ -5,6 +5,7 @@ import { Link, useParams } from "react-router-dom"
 import { MetricCard } from "@/components/analysis/MetricCard"
 import { SuggestionCard } from "@/components/analysis/SuggestionCard"
 import { FloorPlanCanvas } from "@/components/floor-plan/FloorPlanCanvas"
+import { PathOverlay } from "@/components/floor-plan/PathOverlay"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -134,6 +135,19 @@ export function FloorPlanDetailPage() {
   const metricCards = latest
     ? metricsFromJson(latest.metrics_json)
     : []
+
+  const pathsData = useMemo(() => {
+    if (!latest) return []
+    const pj = (latest as any).paths_json
+    if (Array.isArray(pj)) return pj
+    const metricsP = latest.metrics_json?.paths
+    if (Array.isArray(metricsP)) return metricsP
+    return []
+  }, [latest])
+
+  const meta = (fp?.metadata_json ?? {}) as Record<string, any>
+  const planWidth = meta.width ?? meta.canvas?.width ?? 1200
+  const planHeight = meta.height ?? meta.canvas?.height ?? 800
 
   return (
     <TooltipProvider>
@@ -271,19 +285,33 @@ export function FloorPlanDetailPage() {
               <CardHeader>
                 <CardTitle className="text-base">Path visualization</CardTitle>
                 <CardDescription>
-                  Trajectory overlays will appear here after processing completes
+                  Trajectory overlays show customer movement patterns
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="flex min-h-[320px] items-center justify-center rounded-xl border border-dashed bg-muted/10 p-8 text-center">
-                  <div className="max-w-md space-y-2">
-                    <p className="text-sm font-medium">Coming soon</p>
-                    <p className="text-sm text-muted-foreground">
-                      Interactive path traces and directional arrows will render on
-                      top of your floor plan for fast qualitative review.
+                {floorImageUrl && pathsData.length > 0 ? (
+                  <div className="relative">
+                    <FloorPlanCanvas image_url={floorImageUrl} className="shadow-sm" />
+                    <PathOverlay
+                      paths={pathsData}
+                      width={planWidth}
+                      height={planHeight}
+                    />
+                    <p className="mt-3 text-xs text-muted-foreground">
+                      Showing {pathsData.length} path{pathsData.length !== 1 ? "s" : ""}
                     </p>
                   </div>
-                </div>
+                ) : (
+                  <div className="flex min-h-[320px] items-center justify-center rounded-xl border border-dashed bg-muted/10 p-8 text-center">
+                    <div className="max-w-md space-y-2">
+                      <p className="text-sm font-medium">No paths yet</p>
+                      <p className="text-sm text-muted-foreground">
+                        Run an analysis to generate customer trajectory data. Paths
+                        will be drawn as colored polylines with directional arrows.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

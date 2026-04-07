@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { CheckIcon } from "lucide-react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 
+import { CalibrationEditor } from "@/components/calibration/CalibrationEditor"
 import { FloorPlanUploader } from "@/components/upload/FloorPlanUploader"
 import { VideoUploader } from "@/components/upload/VideoUploader"
 import { Button } from "@/components/ui/button"
@@ -15,15 +16,18 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
+import { assetUrl } from "@/lib/analytics-display"
 import {
   createFloorPlan,
   createJob,
+  getFloorPlan,
   getFloorPlans,
   getUploadUrl,
   registerVideo,
   setupWorkspace,
   uploadFloorPlanImage,
 } from "@/lib/api"
+import { extractVideoFrame } from "@/lib/video-frame"
 import type { FloorPlan } from "@/types"
 
 const steps = [
@@ -59,6 +63,12 @@ export function UploadPage() {
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [locationId, setLocationId] = useState<string | null>(null)
+  const [calibrationPoints, setCalibrationPoints] = useState<
+    { camera: [number, number]; floor_plan: [number, number] }[]
+  >([])
+  const [videoFrameUrl, setVideoFrameUrl] = useState<string | null>(null)
+  const [videoFrameSize, setVideoFrameSize] = useState({ width: 1920, height: 1080 })
+  const [floorPlanImageUrl, setFloorPlanImageUrl] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -90,6 +100,34 @@ export function UploadPage() {
     if (mode === "create") return null
     return selectedId || null
   }, [mode, selectedId])
+
+  const loadCalibrationAssets = useCallback(async () => {
+    if (videoFile && !videoFrameUrl) {
+      try {
+        const frame = await extractVideoFrame(videoFile)
+        setVideoFrameUrl(frame.dataUrl)
+        setVideoFrameSize({ width: frame.width, height: frame.height })
+      } catch {
+        // Fallback: can't extract frame
+      }
+    }
+    const fpId = activeFloorPlanId ?? selectedId
+    if (fpId && !floorPlanImageUrl) {
+      try {
+        const fp = await getFloorPlan(fpId)
+        const url = assetUrl(fp.image_path)
+        if (url) setFloorPlanImageUrl(url)
+      } catch {
+        // Fallback: no image
+      }
+    }
+  }, [videoFile, videoFrameUrl, activeFloorPlanId, selectedId, floorPlanImageUrl])
+
+  useEffect(() => {
+    if (step === 2) {
+      void loadCalibrationAssets()
+    }
+  }, [step, loadCalibrationAssets])
 
   const progressPct = useMemo(
     () => Math.round(((step + 1) / steps.length) * 100),
@@ -129,7 +167,13 @@ export function UploadPage() {
         storage_path: videoUp.path,
         duration_seconds: null,
       })
-      const job = await createJob({ video_id: video.id })
+      const jobPayload: { video_id: string; calibration_json?: unknown } = {
+        video_id: video.id,
+      }
+      if (calibrationPoints.length >= 4) {
+        jobPayload.calibration_json = calibrationPoints
+      }
+      const job = await createJob(jobPayload)
       navigate(`/analysis/jobs/${encodeURIComponent(job.id)}`)
     } catch (e) {
       setFormError(e instanceof Error ? e.message : "Something went wrong")
@@ -296,18 +340,36 @@ export function UploadPage() {
           <CardHeader>
             <CardTitle className="text-base">Calibration</CardTitle>
             <CardDescription>
-              Align the camera view with your floor plan geometry
+              Mark at least 4 matching points between the video and floor plan to
+              enable perspective correction. Click a point on the video, then the
+              same point on the floor plan.
             </CardDescription>
           </CardHeader>
-          <CardContent className="rounded-xl border border-dashed bg-muted/20 p-6 text-sm text-muted-foreground">
-            Calibration tool coming soon, using auto-calibration for now.
+          <CardContent>
+            {videoFrameUrl && floorPlanImageUrl ? (
+              <CalibrationEditor
+                videoFrameUrl={videoFrameUrl}
+                videoWidth={videoFrameSize.width}
+                videoHeight={videoFrameSize.height}
+                floorPlanImageUrl={floorPlanImageUrl}
+                onCalibrationChange={setCalibrationPoints}
+              />
+            ) : (
+              <div className="rounded-xl border border-dashed bg-muted/20 p-6 text-center text-sm text-muted-foreground">
+                {!videoFrameUrl
+                  ? "Extracting video frame..."
+                  : "Loading floor plan image..."}
+              </div>
+            )}
           </CardContent>
           <CardFooter className="justify-between gap-2">
             <Button type="button" variant="secondary" onClick={() => setStep(1)}>
               Back
             </Button>
             <Button type="button" onClick={() => setStep(3)}>
-              Continue
+              {calibrationPoints.length >= 4
+                ? "Continue with calibration"
+                : "Skip calibration"}
             </Button>
           </CardFooter>
         </Card>

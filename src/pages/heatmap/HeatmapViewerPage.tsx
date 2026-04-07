@@ -1,9 +1,7 @@
 import { FlameIcon, ImageIcon } from "lucide-react"
-import { useEffect, useMemo, useRef, useState } from "react"
-import { Layer, Line, Rect, Stage } from "react-konva"
+import { useEffect, useState } from "react"
 
-import { FIXTURE_PRESETS } from "@/components/floor-plan/fixtures"
-import type { FloorPlanData } from "@/components/floor-plan/types"
+import { FloorPlanCanvas } from "@/components/floor-plan/FloorPlanCanvas"
 import { Card, CardContent } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import {
@@ -14,31 +12,9 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
+import { assetUrl } from "@/lib/analytics-display"
 import { getAnalyticsHistory, getFloorPlans, setupWorkspace } from "@/lib/api"
 import type { AnalyticsResult, FloorPlan } from "@/types"
-
-function planImageUrl(fp: FloorPlan): string | undefined {
-  if (!fp.image_path) return undefined
-  if (fp.image_path.startsWith("http")) return fp.image_path
-  const base = import.meta.env.VITE_SUPABASE_URL
-  if (!base) return undefined
-  return `${base}/storage/v1/object/public/${fp.image_path}`
-}
-
-function heatmapUrl(result: AnalyticsResult): string | undefined {
-  const path = result.heatmap_image_path
-  if (!path) return undefined
-  if (path.startsWith("http")) return path
-  const base = import.meta.env.VITE_SUPABASE_URL
-  if (!base) return undefined
-  return `${base}/storage/v1/object/public/${path}`
-}
-
-function hasEditorData(fp: FloorPlan): FloorPlanData | null {
-  const meta = fp.metadata_json as FloorPlanData | undefined
-  if (meta?.canvas && Array.isArray(meta.walls)) return meta
-  return null
-}
 
 export function HeatmapViewerPage() {
   const [floorPlans, setFloorPlans] = useState<FloorPlan[]>([])
@@ -46,8 +22,6 @@ export function HeatmapViewerPage() {
   const [analytics, setAnalytics] = useState<AnalyticsResult[]>([])
   const [opacity, setOpacity] = useState(55)
   const [loading, setLoading] = useState(true)
-  const containerRef = useRef<HTMLDivElement>(null)
-  const [containerSize, setContainerSize] = useState({ width: 800, height: 600 })
 
   useEffect(() => {
     ;(async () => {
@@ -85,24 +59,12 @@ export function HeatmapViewerPage() {
     }
   }, [selectedFpId])
 
-  useEffect(() => {
-    const el = containerRef.current
-    if (!el) return
-    const ro = new ResizeObserver(([entry]) => {
-      setContainerSize({
-        width: entry.contentRect.width,
-        height: entry.contentRect.height,
-      })
-    })
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
-
   const selectedFp = floorPlans.find((fp) => fp.id === selectedFpId)
   const latestAnalytics = analytics.length > 0 ? analytics[0] : null
-  const editorData = selectedFp ? hasEditorData(selectedFp) : null
-  const imageUrl = selectedFp ? planImageUrl(selectedFp) : undefined
-  const hmUrl = latestAnalytics ? heatmapUrl(latestAnalytics) : undefined
+  const imageUrl = selectedFp ? assetUrl(selectedFp.image_path) : undefined
+  const hmUrl = latestAnalytics?.heatmap_image_path
+    ? assetUrl(latestAnalytics.heatmap_image_path)
+    : undefined
 
   if (loading) {
     return (
@@ -171,153 +133,22 @@ export function HeatmapViewerPage() {
             </p>
           </CardContent>
         </Card>
-      ) : editorData ? (
-        <EditorHeatmapOverlay
-          data={editorData}
-          heatmapUrl={hmUrl}
-          opacity={opacity / 100}
-          containerRef={containerRef}
-          containerSize={containerSize}
-        />
       ) : imageUrl ? (
-        <ImageHeatmapOverlay
-          imageUrl={imageUrl}
-          heatmapUrl={hmUrl}
-          opacity={opacity / 100}
+        <FloorPlanCanvas
+          image_url={imageUrl}
+          heatmap_url={hmUrl}
+          heatmap_opacity={opacity / 100}
+          className="shadow-sm"
         />
       ) : (
         <Card className="border-dashed shadow-none">
           <CardContent className="flex flex-col items-center py-16 text-center">
             <ImageIcon className="size-10 text-muted-foreground/40" />
             <p className="mt-4 text-sm text-muted-foreground">
-              This floor plan has no image or editor data to display.
+              This floor plan has no image to display.
             </p>
           </CardContent>
         </Card>
-      )}
-    </div>
-  )
-}
-
-function ImageHeatmapOverlay({
-  imageUrl,
-  heatmapUrl,
-  opacity,
-}: {
-  imageUrl: string
-  heatmapUrl?: string
-  opacity: number
-}) {
-  return (
-    <div className="relative w-full overflow-hidden rounded-xl border bg-muted">
-      <img
-        src={imageUrl}
-        alt="Floor plan"
-        className="block h-auto max-h-[70vh] w-full object-contain"
-      />
-      {heatmapUrl && (
-        <img
-          src={heatmapUrl}
-          alt="Heatmap overlay"
-          className="pointer-events-none absolute inset-0 h-full w-full object-contain"
-          style={{ opacity }}
-        />
-      )}
-    </div>
-  )
-}
-
-function EditorHeatmapOverlay({
-  data,
-  heatmapUrl,
-  opacity,
-  containerRef,
-  containerSize,
-}: {
-  data: FloorPlanData
-  heatmapUrl?: string
-  opacity: number
-  containerRef: React.RefObject<HTMLDivElement | null>
-  containerSize: { width: number; height: number }
-}) {
-  const scale = useMemo(() => {
-    const sx = containerSize.width / data.canvas.width
-    const sy = (containerSize.height || 600) / data.canvas.height
-    return Math.min(sx, sy, 1)
-  }, [containerSize, data.canvas])
-
-  return (
-    <div
-      ref={containerRef}
-      className="relative w-full overflow-hidden rounded-xl border bg-white"
-      style={{
-        height: data.canvas.height * scale,
-      }}
-    >
-      <Stage
-        width={data.canvas.width * scale}
-        height={data.canvas.height * scale}
-        scaleX={scale}
-        scaleY={scale}
-      >
-        <Layer>
-          <Rect
-            x={0}
-            y={0}
-            width={data.canvas.width}
-            height={data.canvas.height}
-            fill="#ffffff"
-          />
-
-          {data.zones.map((zone) => (
-            <Line
-              key={zone.id}
-              points={zone.points}
-              closed
-              fill={zone.color + "30"}
-              stroke={zone.color}
-              strokeWidth={2}
-            />
-          ))}
-
-          {data.walls.map((wall) => (
-            <Line
-              key={wall.id}
-              points={wall.points}
-              stroke="#1e293b"
-              strokeWidth={wall.thickness}
-              lineCap="round"
-            />
-          ))}
-
-          {data.fixtures.map((fixture) => {
-            const preset = FIXTURE_PRESETS.find((p) => p.type === fixture.type)
-            const fill = preset?.color ?? "#94a3b8"
-            return (
-              <Rect
-                key={fixture.id}
-                x={fixture.x}
-                y={fixture.y}
-                width={fixture.width}
-                height={fixture.height}
-                rotation={fixture.rotation}
-                fill={fill + "CC"}
-                stroke={fill}
-                strokeWidth={1.5}
-                cornerRadius={4}
-              />
-            )
-          })}
-        </Layer>
-      </Stage>
-
-      {heatmapUrl && (
-        <img
-          src={heatmapUrl}
-          alt="Heatmap overlay"
-          className="pointer-events-none absolute inset-0 h-full w-full object-contain"
-          style={{ opacity }}
-        />
       )}
     </div>
   )

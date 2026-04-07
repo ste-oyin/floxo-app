@@ -165,7 +165,7 @@ export function registerVideo(body: {
 
 // -- Jobs --
 
-export function createJob(body: { video_id: string }) {
+export function createJob(body: { video_id: string; calibration_json?: unknown }) {
   return apiFetch<Job>("/jobs", {
     method: "POST",
     body: JSON.stringify(body),
